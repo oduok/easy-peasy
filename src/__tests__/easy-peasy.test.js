@@ -568,8 +568,6 @@ describe('store', () => {
         ],
       },
     );
-
-    // assert
   });
 
   test('supports initial state', () => {
@@ -636,6 +634,340 @@ describe('store', () => {
     const result = await store.dispatch.session.initialise();
     expect(store.getState().session.isInitialised).toBe(true);
     expect(result).toBe('done');
+  });
+
+  describe('triggerListeners', () => {
+    it('does nothing invalid function action', () => {
+      // arrange
+      const store = createStore({});
+
+      // act
+      store.triggerListeners(() => undefined, 'foo');
+    });
+
+    it('does nothing invalid action', () => {
+      // arrange
+      const store = createStore({});
+
+      // act
+      store.triggerListeners(true, 'foo');
+    });
+
+    it('does nothing for no matches', () => {
+      // arrange
+      const store = createStore({});
+
+      // act
+      store.triggerListeners('DOES_NOT_EXIST', 'foo');
+    });
+
+    it('fires all listeners for action', async () => {
+      // arrange
+      const model = {
+        logs: [],
+        log: action((state, payload) => {
+          state.logs.push(payload);
+        }),
+        registerSession: action(() => {}),
+        listeners: listen(on => {
+          on(
+            model.registerSession,
+            action((state, payload) => {
+              state.logs.push(`action fired ${payload.username}`);
+            }),
+          );
+          on(
+            model.registerSession,
+            thunk((actions, payload) => {
+              actions.log(`thunk fired ${payload.username}`);
+            }),
+          );
+        }),
+      };
+      const store = createStore(model);
+
+      // act
+      await store.triggerListeners(model.registerSession, { username: 'bob' });
+
+      // assert
+      expect(store.getState().logs).toEqual([
+        'action fired bob',
+        'thunk fired bob',
+      ]);
+    });
+
+    it('fires all listeners for thunk', () => {
+      // arrange
+      const model = {
+        logs: [],
+        log: action((state, payload) => {
+          state.logs.push(payload);
+        }),
+        registerSession: thunk(() => {}),
+        listeners: listen(on => {
+          on(
+            model.registerSession,
+            action((state, payload) => {
+              state.logs.push(`action fired ${payload.username}`);
+            }),
+          );
+          on(
+            model.registerSession,
+            thunk((actions, payload) => {
+              actions.log(`thunk fired ${payload.username}`);
+            }),
+          );
+        }),
+      };
+      const store = createStore(model);
+
+      // act
+      store.triggerListeners(model.registerSession, { username: 'bob' });
+
+      // assert
+      expect(store.getState().logs).toEqual([
+        'action fired bob',
+        'thunk fired bob',
+      ]);
+    });
+
+    it('fires all listeners for string action', () => {
+      // arrange
+      const model = {
+        logs: [],
+        log: action((state, payload) => {
+          state.logs.push(payload);
+        }),
+        listeners: listen(on => {
+          on(
+            'REGISTER',
+            action((state, payload) => {
+              state.logs.push(`action fired ${payload.username}`);
+            }),
+          );
+          on(
+            'REGISTER',
+            thunk((actions, payload) => {
+              actions.log(`thunk fired ${payload.username}`);
+            }),
+          );
+        }),
+      };
+      const store = createStore(model);
+
+      // act
+      store.triggerListeners('REGISTER', { username: 'bob' });
+
+      // assert
+      expect(store.getState().logs).toEqual([
+        'action fired bob',
+        'thunk fired bob',
+      ]);
+    });
+  });
+
+  describe('triggerListener', () => {
+    it('does nothing invalid function action', () => {
+      // arrange
+      const model = {
+        listeners: listen(() => {}),
+      };
+      const store = createStore(model);
+
+      // act
+      store.triggerListener(model.listeners, () => undefined, 'foo');
+    });
+
+    it('does nothing invalid action', () => {
+      // arrange
+      const model = {
+        listeners: listen(() => {}),
+      };
+      const store = createStore(model);
+
+      // act
+      store.triggerListener(model.listeners, true, 'foo');
+    });
+
+    it('does nothing for no matches', () => {
+      // arrange
+      const model = {
+        listeners: listen(() => {}),
+      };
+      const store = createStore(model);
+
+      // act
+      store.triggerListener(model.listeners, 'DOES_NOT_EXIST', 'foo');
+    });
+
+    describe('action handlers', () => {
+      it('listening to string action', async () => {
+        // arrange
+        const model = {
+          logs: [],
+          listeners: listen(on => {
+            on(
+              'ROUTE_CHANGED',
+              action((state, payload) => {
+                state.logs.push(payload);
+              }),
+            );
+          }),
+        };
+
+        const store = createStore(model);
+
+        // act
+        store.triggerListener(model.listeners, 'ROUTE_CHANGED', '/about');
+
+        // assert
+        expect(store.getState().logs).toEqual(['/about']);
+      });
+
+      it('listening to action', async () => {
+        // arrange
+        const model = {
+          registerSession: action(() => {}),
+          logs: [],
+          listeners: listen(on => {
+            on(
+              model.registerSession,
+              action((state, payload) => {
+                state.logs.push(`Registered session for ${payload.username}`);
+              }),
+            );
+          }),
+        };
+
+        const store = createStore(model);
+
+        // act
+        store.triggerListener(model.listeners, model.registerSession, {
+          username: 'bob',
+        });
+
+        // assert
+        expect(store.getState().logs).toEqual(['Registered session for bob']);
+      });
+
+      it('listening to thunk', async () => {
+        // arrange
+        const model = {
+          registerSession: thunk(() => {}),
+          logs: [],
+          listeners: listen(on => {
+            on(
+              model.registerSession,
+              action((state, payload) => {
+                state.logs.push(`Registered session for ${payload.username}`);
+              }),
+            );
+          }),
+        };
+
+        const store = createStore(model);
+
+        // act
+        await store.triggerListener(model.listeners, model.registerSession, {
+          username: 'bob',
+        });
+
+        // assert
+        expect(store.getState().logs).toEqual(['Registered session for bob']);
+      });
+    });
+
+    describe('thunk handlers', () => {
+      it('listening to string action', async () => {
+        // arrange
+        const model = {
+          logs: [],
+          log: action((state, payload) => {
+            state.logs.push(payload);
+          }),
+          listeners: listen(on => {
+            on(
+              'ROUTE_CHANGED',
+              thunk(async (actions, payload) => {
+                // simulate some async to ensure async resolution works as expected
+                await new Promise(resolve => setTimeout(resolve, 1));
+                actions.log(`Route changed: ${payload}`);
+              }),
+            );
+          }),
+        };
+
+        const store = createStore(model);
+
+        // act
+        await store.triggerListener(model.listeners, 'ROUTE_CHANGED', '/about');
+
+        // assert
+        expect(store.getState().logs).toEqual(['Route changed: /about']);
+      });
+
+      it('listening to action', async () => {
+        // arrange
+        const model = {
+          registerSession: action(() => {}),
+          logs: [],
+          log: action((state, payload) => {
+            state.logs.push(payload);
+          }),
+          listeners: listen(on => {
+            on(
+              model.registerSession,
+              thunk(async (actions, payload) => {
+                // simulate some async to ensure async resolution works as expected
+                await new Promise(resolve => setTimeout(resolve, 1));
+                actions.log(`Registered session: ${payload.username}`);
+              }),
+            );
+          }),
+        };
+
+        const store = createStore(model);
+
+        // act
+        await store.triggerListener(model.listeners, model.registerSession, {
+          username: 'bob',
+        });
+
+        // assert
+        expect(store.getState().logs).toEqual(['Registered session: bob']);
+      });
+
+      it('listening to thunk', async () => {
+        // arrange
+        const model = {
+          registerSession: thunk(async () => {}),
+          logs: [],
+          log: action((state, payload) => {
+            state.logs.push(payload);
+          }),
+          listeners: listen(on => {
+            on(
+              model.registerSession,
+              thunk(async (actions, payload) => {
+                // simulate some async to ensure async resolution works as expected
+                await new Promise(resolve => setTimeout(resolve, 1));
+                actions.log(`Registered session: ${payload.username}`);
+              }),
+            );
+          }),
+        };
+
+        const store = createStore(model);
+
+        // act
+        await store.triggerListener(model.listeners, model.registerSession, {
+          username: 'bob',
+        });
+
+        // assert
+        expect(store.getState().logs).toEqual(['Registered session: bob']);
+      });
+    });
   });
 });
 

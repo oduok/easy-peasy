@@ -169,6 +169,8 @@ export default function createStoreInternals({
   });
 
   listenDefinitions.forEach(def => {
+    def.listeners = def.listeners || {};
+
     const on = (target, handler) => {
       if (typeof handler !== 'function') {
         return;
@@ -218,7 +220,6 @@ export default function createStoreInternals({
             handler,
           });
         }
-        def.listeners = def.listeners || {};
         def.listeners[targetActionName] = def.listeners[targetActionName] || [];
         def.listeners[targetActionName].push(handler);
       }
