@@ -189,7 +189,7 @@ export default function createStoreInternals({
         return;
       }
 
-      let name;
+      let targetActionName;
 
       if (
         typeof target === 'function' &&
@@ -197,21 +197,27 @@ export default function createStoreInternals({
         actionCreatorDict[target[actionNameSymbol]]
       ) {
         if (target[thunkSymbol]) {
-          name = helpers.thunkCompleteName(target);
+          targetActionName = helpers.thunkCompleteName(target);
         } else {
-          name = target[actionNameSymbol];
+          targetActionName = target[actionNameSymbol];
         }
       } else if (typeof target === 'string') {
-        name = target;
+        targetActionName = target;
       }
 
-      if (name) {
+      if (targetActionName) {
         if (handler[thunkSymbol]) {
-          thunkListenersDict[name] = thunkListenersDict[name] || [];
-          thunkListenersDict[name].push(handler);
+          thunkListenersDict[targetActionName] =
+            thunkListenersDict[targetActionName] || [];
+          thunkListenersDict[targetActionName].push(handler);
+          def.listeners = def.listeners || {};
+          def.listeners[targetActionName] =
+            def.listeners[targetActionName] || [];
+          def.listeners[targetActionName].push(handler);
         } else {
-          actionListenersDict[name] = actionListenersDict[name] || [];
-          actionListenersDict[name].push({
+          actionListenersDict[targetActionName] =
+            actionListenersDict[targetActionName] || [];
+          actionListenersDict[targetActionName].push({
             path: meta.parent,
             handler,
           });
@@ -341,9 +347,10 @@ export default function createStoreInternals({
   };
 
   return {
-    reducer: reducerEnhancer(createReducer()),
-    defaultState,
     actionCreators,
+    defaultState,
+    listenDefinitions,
+    reducer: reducerEnhancer(createReducer()),
     thunkListenersDict,
   };
 }
