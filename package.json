@@ -151,10 +151,11 @@
     "dist/"
   ],
   "prettier": {
+    "parser": "typescript",
     "semi": true,
     "singleQuote": true,
-    "trailingComma": "all",
-    "parser": "typescript"
+    "tabWidth": 2,
+    "trailingComma": "all"
   },
   "lint-staged": {
     "*.js": [
